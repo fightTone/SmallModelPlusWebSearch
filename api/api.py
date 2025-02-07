@@ -26,8 +26,13 @@ app.add_middleware(
 OLLAMA_BASE_URL = "http://localhost:11434"
 MAX_TOKENS_PER_THREAD = 500  # Limit tokens for each search result processing
 
+class Message(BaseModel):
+    role: str  # 'user' or 'assistant'
+    content: str
+
 class PromptRequest(BaseModel):
     prompt: str
+    conversation_history: Optional[List[Message]] = []
     system_prompt: Optional[str] = None
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 2000
@@ -105,31 +110,47 @@ class WebSearcher:
                 if results:
                     all_results.extend(results)
                     
-            # Process each result in parallel using ThreadPoolExecutor
+            # Process each result to extract key points
             async def process_results():
                 tasks = []
-                for result in all_results[:num_results]:
-                    summary = await self.process_search_result(client, result, query)
+                for i, result in enumerate(all_results[:num_results], 1):
+                    points_prompt = f"""Extract key factual points from this source:
+                    Title: {result['title']}
+                    Content: {result['body']}
+                    
+                    List 3-5 main factual points, focusing on information relevant to: {query}
+                    Format as bullet points."""
+                    
+                    points = await client.generate_simple_response({
+                        "prompt": points_prompt,
+                        "max_tokens": MAX_TOKENS_PER_THREAD,
+                        "temperature": 0.5
+                    })
+                    
                     search_summaries.append({
                         'title': result['title'],
-                        'summary': summary
+                        'source_num': i,
+                        'key_points': points
                     })
             
             await process_results()
             
-            # Combine summaries into final result
-            formatted_results = "Web search results:\n\n"
-            for i, result in enumerate(search_summaries, 1):
-                formatted_results += f"{i}. {result['title']}\n"
-                formatted_results += f"Summary: {result['summary']}\n\n"
+            # Format results with source numbers
+            formatted_results = "Web Search Results:\n\n"
+            for result in search_summaries:
+                formatted_results += f"Source {result['source_num']}: {result['title']}\n"
+                formatted_results += f"Key Points:\n{result['key_points']}\n\n"
             
             # Generate final combined summary
-            final_summary_prompt = f"""Based on these search results, provide a comprehensive answer:
+            final_summary_prompt = f"""Extract key points from these search results:
             {formatted_results}
             
             Question: {query}
             
-            Provide a well-organized response that synthesizes the information."""
+            List the most important factual points from the sources using bullet points.
+            For each point, indicate which source it came from (Source 1, 2, or 3).
+            Organize the points by relevance to the question.
+            Only include factual information that appears in the sources."""
             
             final_summary = await client.generate_simple_response({
                 "prompt": final_summary_prompt,
@@ -208,7 +229,15 @@ class OllamaClient:
             raise HTTPException(status_code=400, detail="No model selected. Please select a model first.")
             
         # Handle web search if requested
-        enhanced_prompt = request.prompt
+        # Build context from conversation history
+        context = ""
+        if request.conversation_history:
+            context = "Previous conversation:\n"
+            for msg in request.conversation_history[-3:]:  # Last 3 messages for context
+                context += f"{msg.role.title()}: {msg.content}\n"
+            context += "\nCurrent question: "
+            
+        enhanced_prompt = f"{context}{request.prompt}"
         search_results = None
         
         if request.include_web_search:
