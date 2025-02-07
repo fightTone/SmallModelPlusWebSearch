@@ -6,8 +6,18 @@ from typing import Optional, Dict, Any, List
 import json
 from duckduckgo_search import DDGS
 import html2text
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Configuration
 OLLAMA_BASE_URL = "http://localhost:11434"
