@@ -1,5 +1,47 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Send, Search, Menu, X, ChevronDown } from 'lucide-react';
+import { Settings, Send, Search, Menu, X, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react';
+
+const ChatMessage = ({ message }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  if (message.role === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[80%] p-4 rounded-2xl shadow-sm bg-blue-500 text-white ml-4">
+          <div className="whitespace-pre-wrap">{message.content}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[80%] p-4 rounded-2xl shadow-sm bg-white mr-4 space-y-3">
+        <div className="whitespace-pre-wrap">{message.content}</div>
+        
+        {message.webSearchResults && (
+          <div className="mt-4 border-t pt-3">
+            <button 
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center text-sm text-blue-500 hover:text-blue-600 transition-colors duration-200"
+            >
+              {expanded ? <ChevronUp size={16} /> : <ChevronRight size={16} />}
+              <span className="ml-1">Web Search Results</span>
+            </button>
+            
+            {expanded && (
+              <div className="mt-3 text-sm text-gray-600 space-y-3">
+                <div className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3">
+                  {message.webSearchResults}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
@@ -52,45 +94,51 @@ const ChatInterface = () => {
   };
 
   const sendMessage = async () => {
-        if (!input.trim() || !currentModel) return;
+    if (!input.trim() || !currentModel) return;
 
-        const userMessage = {
-        role: 'user',
-        content: input
-        };
-
-        setMessages(prev => [...prev, userMessage]);
-        setInput('');
-        setLoading(true);
-
-        try {
-        const response = await fetch('http://localhost:8000/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-            prompt: input,
-            temperature: settings.temperature,
-            max_tokens: settings.maxTokens,           // Changed from maxTokens
-            include_web_search: settings.includeWebSearch,  // Changed from includeWebSearch
-            num_search_results: settings.numSearchResults   // Changed from numSearchResults
-            })
-        });
-
-        const data = await response.json();
-        
-        const assistantMessage = {
-            role: 'assistant',
-            content: data.response,
-            webSearchResults: data.web_search_results
-        };
-
-        setMessages(prev => [...prev, assistantMessage]);
-        } catch (error) {
-        console.error('Error sending message:', error);
-        } finally {
-        setLoading(false);
-        }
+    const userMessage = {
+      role: 'user',
+      content: input
     };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:8000/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: input,
+          temperature: settings.temperature,
+          max_tokens: settings.maxTokens,
+          include_web_search: settings.includeWebSearch,
+          num_search_results: settings.numSearchResults
+        })
+      });
+
+      const data = await response.json();
+      
+      const assistantMessage = {
+        role: 'assistant',
+        content: data.response,
+        webSearchResults: data.web_search_results
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Add error message to chat
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error while processing your request. Please try again.',
+        isError: true
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-slate-100">
@@ -196,26 +244,7 @@ const ChatInterface = () => {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, index) => (
-          <div
-            key={index}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[80%] p-4 rounded-2xl shadow-sm ${
-                message.role === 'user'
-                  ? 'bg-blue-500 text-white ml-4'
-                  : 'bg-white mr-4'
-              }`}
-            >
-              <div className="whitespace-pre-wrap">{message.content}</div>
-              {message.webSearchResults && (
-                <div className="mt-3 pt-3 border-t border-opacity-20">
-                  <div className="font-medium mb-1 text-sm">Web Search Results:</div>
-                  <div className="text-sm opacity-90">{message.webSearchResults}</div>
-                </div>
-              )}
-            </div>
-          </div>
+          <ChatMessage key={index} message={message} />
         ))}
         {loading && (
           <div className="flex justify-start">
