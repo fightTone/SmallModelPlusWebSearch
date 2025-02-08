@@ -111,6 +111,10 @@ const ChatInterface = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: input,
+          conversation_history: messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
           temperature: settings.temperature,
           max_tokens: settings.maxTokens,
           include_web_search: settings.includeWebSearch,
