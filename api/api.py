@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 from fastapi.middleware.cors import CORSMiddleware
 
-
 app = FastAPI()
 
 app.add_middleware(
@@ -21,7 +20,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Configuration
 OLLAMA_BASE_URL = "http://localhost:11434"
 MAX_TOKENS_PER_THREAD = 500  # Limit tokens for each search result processing
@@ -48,17 +46,39 @@ class WebSearcher:
         self.html_converter.ignore_links = True
         self.ddgs = DDGS()
         
-    async def generate_search_queries(self, client, prompt: str, num_queries: int = 3) -> List[str]:
-        """Use AI to generate optimized search queries"""
+    async def generate_search_queries(self, client, prompt: str, conversation_history=None, num_queries: int = 3) -> List[str]:
+        """Use AI to generate optimized search queries based on context"""
         try:
-            search_prompt = f"""Generate {num_queries} different search queries to find information about: {prompt}
-            Make each query specific and focused on different aspects. Format as a simple list with each query on a new line starting with a hyphen (-)."""
+            # Ensure conversation_history is a list
+            conversation_history = conversation_history if isinstance(conversation_history, list) else []
+            # print(conversation_history)
+            
+            # Build context for query generation
+            context = ""
+            if conversation_history and len(conversation_history) > 0:
+                # Filter only user messages
+                user_messages = [msg for msg in conversation_history if msg.role == "user"]
+                if user_messages:
+                    context = "Previous user questions:\n"
+                    for msg in user_messages[-3:]:  # Last 3 user messages
+                        context += f"- {msg.content}\n"
+                    context += "\nCurrent question: " + prompt + "\n"
+            else:
+                context = "Question: " + prompt + "\n"
+
+            search_prompt = f"""{context}
+            Based on this {'previous questions' if conversation_history else 'question'}, generate {num_queries} specific web-search queries to find relevant information.
+            {'Focus on maintaining context from the previous messages.' if conversation_history else 'Focus on the main aspects of the question.'}
+            Make each query specific and targeted.
+            Format as a simple list with each query on a new line starting with a hyphen (-)."""
+            print(search_prompt)
             
             response = await client.generate_simple_response({
                 "prompt": search_prompt,
                 "max_tokens": 200,
                 "temperature": 0.7
             })
+            print(response)
             
             # Extract queries from response
             queries = [
@@ -67,16 +87,19 @@ class WebSearcher:
                 if line.strip() and line.strip().startswith('-')
             ]
             
-            # If we didn't get enough queries, use variations of the original prompt
+            # If we didn't get enough queries, use variations with context
             if len(queries) < num_queries:
-                queries.extend([prompt] * (num_queries - len(queries)))
+                base_query = prompt
+                if conversation_history and len(conversation_history) >= 2:
+                    last_topic = conversation_history[-2].content
+                    base_query = f"{last_topic} {prompt}"
+                queries.extend([base_query] * (num_queries - len(queries)))
                 
             return queries[:num_queries]
             
         except Exception as e:
             print(f"Error generating search queries: {str(e)}")
-            # Fallback to using the original prompt
-            return [prompt] * num_queries
+            return [prompt] * num_queries  # Simple fallback
         
     async def process_search_result(self, client, result: Dict, context: str) -> str:
         """Process and summarize a single search result"""
@@ -95,11 +118,11 @@ class WebSearcher:
         
         return response
         
-    async def search(self, client, query: str, num_results: int = 3) -> Dict[str, Any]:
+    async def search(self, client, query: str, conversation_history: str, num_results: int = 3) -> Dict[str, Any]:
         """Perform enhanced web search with AI processing"""
         try:
             # Generate optimized search queries
-            search_queries = await self.generate_search_queries(client, query, num_results)
+            search_queries = await self.generate_search_queries(client, query, conversation_history, num_results)
             
             all_results = []
             search_summaries = []
@@ -244,6 +267,7 @@ class OllamaClient:
             search_data = await self.web_searcher.search(
                 self,
                 request.prompt, 
+                request.conversation_history,
                 request.num_search_results
             )
             enhanced_prompt = f"""Context from web search:
