@@ -7,21 +7,6 @@
   height: 100vh;
 }
 
-/* Custom styles for the toggle switch */
-.toggle-checkbox:checked {
-  right: 0;
-  border-color: #3B82F6;
-}
-.toggle-checkbox:checked + .toggle-label {
-  background-color: #3B82F6;
-}
-.toggle-checkbox {
-  right: 0;
-  transition: all 0.3s;
-}
-.toggle-label {
-  transition: background-color 0.3s;
-}
 
 /* Message animations */
 @keyframes fadeIn {

@@ -217,14 +217,26 @@ const ChatInterface = () => {
               </div>
               <div className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
                 <label className="text-sm font-medium">Include Web Search</label>
-                <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                <div className="relative inline-block w-12 align-middle select-none">
                   <input
                     type="checkbox"
                     checked={settings.includeWebSearch}
                     onChange={(e) => setSettings(prev => ({...prev, includeWebSearch: e.target.checked}))}
-                    className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                    className="sr-only"
+                    id="websearch-toggle"
                   />
-                  <label className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                  <label
+                    htmlFor="websearch-toggle"
+                    className={`block overflow-hidden h-6 rounded-full cursor-pointer transition-colors duration-300 ${
+                      settings.includeWebSearch ? 'bg-blue-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`block w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-300 ${
+                        settings.includeWebSearch ? 'translate-x-6' : 'translate-x-0.5'
+                      } mt-0.5`}
+                    />
+                  </label>
                 </div>
               </div>
               {settings.includeWebSearch && (
@@ -285,23 +297,6 @@ const ChatInterface = () => {
         </div>
       </div>
 
-      {/* Add some custom styles for the toggle switch */}
-      <style jsx>{`
-        .toggle-checkbox:checked {
-          right: 0;
-          border-color: #3B82F6;
-        }
-        .toggle-checkbox:checked + .toggle-label {
-          background-color: #3B82F6;
-        }
-        .toggle-checkbox {
-          right: 0;
-          transition: all 0.3s;
-        }
-        .toggle-label {
-          transition: background-color 0.3s;
-        }
-      `}</style>
     </div>
   );
 };

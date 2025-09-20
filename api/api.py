@@ -4,7 +4,7 @@ import requests
 import uvicorn
 from typing import Optional, Dict, Any, List
 import json
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 import html2text
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
